@@ -2,7 +2,7 @@ import os
 import re
 import sys
 import json
-import threading
+import multiprocessing
 import time
 import signal
 import logging
@@ -48,10 +48,10 @@ PROXY_LISTENERS = {}
 LOG = logging.getLogger(__name__)
 
 # event flag indicating the the infrastructure has been started and that the ready marker has been printed
-INFRA_READY = threading.Event()
+INFRA_READY = multiprocessing.Event()
 
 # event flag indicating that the infrastructure has been shut down
-SHUTDOWN_INFRA = threading.Event()
+SHUTDOWN_INFRA = multiprocessing.Event()
 
 
 # -----------------------

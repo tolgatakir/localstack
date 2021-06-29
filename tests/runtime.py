@@ -24,50 +24,73 @@ _runtime_thread = None
 
 _cmd_lock = mp.Lock()
 
+PROCESS_BASED = True
 
-def start(wait=True, timeout=None):
+
+def start(timeout=None):
+    """
+    Start a new LocalStack instance and potentially wait until it is started. This function is idempotent, and thread
+    safe.
+    """
     global _runtime_thread
 
     with _cmd_lock:
         if _startup_monitor_event.is_set():
-            _started.wait(timeout=timeout)
-            return
+            return _started.wait(timeout=timeout)
 
-        _runtime_thread = threading.Thread(target=_run_startup_monitor).start()
+        if PROCESS_BASED:
+            print('___STARTING PROCESS___')
+            _runtime_thread = mp.Process(target=_run_startup_monitor)
+        else:
+            _runtime_thread = threading.Thread(target=_run_startup_monitor)
+
+        _runtime_thread.start()
 
         _startup_monitor_event.set()
-        if wait:
-            _started.wait(timeout=timeout)
+        return _started.wait(timeout=timeout)
 
 
 def stop():
-    _stop.set()
-    _startup_monitor_event.set()
+    with _cmd_lock:
+        _stop.set()
+        _startup_monitor_event.set()
 
 
-def join(timeout=None):
+def join(timeout=None) -> bool:
     global _runtime_thread
 
     if _runtime_thread is None:
-        _startup_monitor_event.wait(timeout=None)
+        if not _startup_monitor_event.wait(timeout=timeout):
+            return False
 
     if _runtime_thread is None:
-        return
+        return True
 
     _runtime_thread.join(timeout=timeout)
-    _stopped.wait()
+
+    return _stopped.wait(timeout=timeout)
 
 
-def reset():
+def reset(timeout=None):
+    """
+    Stops the running LocalStack instance
+    """
     global _runtime_thread
 
-    stop()
-    join()
-    _runtime_thread = None
-    _started.clear()
-    _stop.clear()
-    _stopped.clear()
-    _startup_monitor_event.clear()
+    try:
+        stop()
+        return join(timeout=timeout)
+    finally:
+        _runtime_thread = None
+        _started.clear()
+        _stop.clear()
+        _stopped.clear()
+        _startup_monitor_event.clear()
+        infra.INFRA_READY.clear()
+
+
+def is_running():
+    return infra.INFRA_READY.is_set()
 
 
 def _run_startup_monitor() -> None:
