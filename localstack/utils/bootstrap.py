@@ -14,13 +14,13 @@ import traceback
 import warnings
 from concurrent.futures._base import Future
 from datetime import datetime
+from functools import wraps
 from typing import List, Union
 
 import pip as pip_mod
 import six
 
 from localstack import config, constants
-from localstack.utils.analytics.profiler import log_duration
 
 # set up logger
 LOG = logging.getLogger(os.path.basename(__file__))
@@ -121,6 +121,29 @@ def run_pip_main(args):
     import pip._internal.main
 
     return pip._internal.main.main(args)
+
+
+def log_duration(name=None):
+    """Function decorator to log the duration of function invocations."""
+
+    def wrapper(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            from localstack.utils.common import now_utc
+
+            start_time = now_utc(millis=True)
+            try:
+                return f(*args, **kwargs)
+            finally:
+                end_time = now_utc(millis=True)
+                func_name = name or f.__name__
+                duration = end_time - start_time
+                if duration > 500:
+                    LOG.info('Execution of "%s" took %.2fms', func_name, duration)
+
+        return wrapped
+
+    return wrapper
 
 
 @log_duration()
