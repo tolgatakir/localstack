@@ -32,7 +32,7 @@ from localstack.services.plugins import (
     record_service_health,
     wait_for_infra_shutdown,
 )
-from localstack.utils import common, persistence
+from localstack.utils import analytics, common, persistence
 from localstack.utils.analytics import event_publisher
 from localstack.utils.bootstrap import (
     canonicalize_api_names,
@@ -403,6 +403,7 @@ def stop_infra():
     common.INFRA_STOPPED = True
 
     event_publisher.fire_event(event_publisher.EVENT_STOP_INFRA)
+    analytics.log.event("infra_stop")
 
     try:
         generic_proxy.QUIET = True
@@ -528,6 +529,7 @@ def do_start_infra(asynchronous, apis, is_in_docker):
 
     # prepare APIs
     apis = canonicalize_api_names(apis)
+    analytics.log.event("infra_start", apis=apis)
 
     @log_duration()
     def prepare_environment():
@@ -584,5 +586,6 @@ def do_start_infra(asynchronous, apis, is_in_docker):
     sys.stdout.flush()
 
     INFRA_READY.set()
+    analytics.log.event("infra_ready")
 
     return thread
